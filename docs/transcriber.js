@@ -93,8 +93,8 @@ export class Transcriber {
   async transcribe(audio, options = {}) {
     const {
       sampleRate = 16000,
-      model = 'tiny',
-      language = 'auto',
+      model = 'base',
+      language = 'ru',
       translate = false,
       onModelProgress,
       onStatus,
@@ -112,7 +112,7 @@ export class Transcriber {
     // Stream results by processing audio in 30-second chunks with overlap.
     // This lets the UI show partial results as transcription progresses.
     const chunkDuration = 30; // seconds
-    const overlapDuration = 5; // seconds overlap for context
+    const overlapDuration = 0; // seconds overlap for context
     const sampleRate16k = 16000;
     const chunkSamples = chunkDuration * sampleRate16k;
     const overlapSamples = overlapDuration * sampleRate16k;
@@ -129,18 +129,19 @@ export class Transcriber {
 
       const result = await this.pipe(chunkAudio, {
         chunk_length_s: 30,
-        stride_length_s: 5,
+        stride_length_s: 0,
         return_timestamps: true,
-        language: language && language !== 'auto' ? language : null,
-        task: translate ? 'translate' : 'transcribe',
+        language: 'russian',
+        task: 'transcribe',
+        do_sample: false,
       });
 
       // Convert this chunk's results and adjust timestamps.
       const chunkSegments = this._toSegments(result, chunkAudio.length / sampleRate16k);
       for (const seg of chunkSegments) {
         // Shift timestamps by the global time offset.
-        seg.start += globalTimeOffset;
-        seg.end += globalTimeOffset;
+        if (Number.isFinite(seg.start)) seg.start += globalTimeOffset;
+        if (Number.isFinite(seg.end)) seg.end += globalTimeOffset;
         allSegments.push(seg);
       }
 
@@ -170,7 +171,7 @@ export class Transcriber {
     if (result && Array.isArray(result.chunks) && result.chunks.length) {
       // Pre-filter non-empty chunks and calculate duration for fallback
       const nonEmptyChunks = result.chunks.filter((chunk) => (chunk.text || '').trim().length > 0);
-      const segmentDuration = totalDuration / nonEmptyChunks.length;
+      
       
       return nonEmptyChunks
         .map((chunk, i) => {
@@ -188,8 +189,8 @@ export class Transcriber {
           
           // Fallback: distribute segments evenly across total duration
           return {
-            start: i * segmentDuration,
-            end: (i + 1) * segmentDuration,
+            start: null,
+            end: null,
             text,
           };
         });
