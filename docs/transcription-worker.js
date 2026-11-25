@@ -14,7 +14,7 @@
  *   { type: 'error', message }
  */
 
-import { Transcriber } from './transcriber.js';
+import { Transcriber } from './transcriber.js?v=6';
 
 const transcriber = new Transcriber();
 let busy = false;
