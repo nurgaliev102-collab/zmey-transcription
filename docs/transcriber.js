@@ -66,8 +66,9 @@ export class Transcriber {
 
     this.pipe = await pipeline('automatic-speech-recognition', repo, {
       // Quantized weights keep the download small and inference fast.
+      device: 'wasm',
       dtype: {
-        encoder_model: 'fp32',
+        encoder_model: 'q8',
         decoder_model_merged: 'q8',
       },
       progress_callback: (p) => {
