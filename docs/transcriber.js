@@ -198,7 +198,7 @@ export class Transcriber {
 
     // Fallback: single segment spanning the whole clip.
     const text = result && result.text ? result.text.trim() : '';
-    return text ? [{ start: 0, end: totalDuration, text }] : [];
+    return text ? [{ start: null, end: null, text }] : [];
   }
 
   /**
