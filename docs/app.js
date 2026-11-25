@@ -19,8 +19,8 @@ class WhisperApp {
     this.currentTranscript = null;
     this.wakeLockSentinel = null;
     this.isTranscribing = false;
-    this.selectedModel = 'tiny'; // Default model
-    this.selectedLanguage = 'auto';
+    this.selectedModel = 'base'; // Default multilingual model
+    this.selectedLanguage = 'ru';
     this.translateToEnglish = false;
     this.quillEditor = null; // Rich text editor instance
     
