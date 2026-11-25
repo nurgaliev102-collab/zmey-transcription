@@ -112,7 +112,7 @@ export class Transcriber {
 
     // Stream results by processing audio in 30-second chunks with overlap.
     // This lets the UI show partial results as transcription progresses.
-    const chunkDuration = 30; // seconds
+    const chunkDuration = 15; // seconds
     const overlapDuration = 0; // seconds overlap for context
     const sampleRate16k = 16000;
     const chunkSamples = chunkDuration * sampleRate16k;
@@ -128,13 +128,18 @@ export class Transcriber {
       const end = Math.min(offset + chunkSamples, audio16k.length);
       const chunkAudio = audio16k.slice(offset, end);
 
-      const result = await this.pipe(chunkAudio, {
-        chunk_length_s: 30,
+      let energy = 0, peak = 0;
+      for (const x of chunkAudio) { if (!Number.isFinite(x)) throw new Error('Invalid PCM'); energy += x*x; peak = Math.max(peak, Math.abs(x)); }
+      const rms = Math.sqrt(energy / chunkAudio.length);
+      const result = peak < 0.00001 ? {text: '[Почти нулевой сигнал — проверить аудио]'} : await this.pipe(chunkAudio, {
+        chunk_length_s: 0,
         stride_length_s: 0,
         return_timestamps: true,
         language: 'russian',
         task: 'transcribe',
         do_sample: false,
+        max_new_tokens: 192,
+        repetition_penalty: 1.1,
       });
 
       // Convert this chunk's results and adjust timestamps.
@@ -143,6 +148,13 @@ export class Transcriber {
         // Shift timestamps by the global time offset.
         if (Number.isFinite(seg.start)) seg.start += globalTimeOffset;
         if (Number.isFinite(seg.end)) seg.end += globalTimeOffset;
+        const words = seg.text.toLowerCase().match(/[\p{L}\p{N}]+/gu) || [];
+        let repeated = false;
+        for (let n=1;n<=8;n++) for(let j=0;j+4*n<=words.length;j++) {
+          const phrase=words.slice(j,j+n).join(' ');
+          if ([1,2,3].every(k=>words.slice(j+k*n,j+(k+1)*n).join(' ')===phrase)) repeated=true;
+        }
+        if (repeated) seg.text = '[Возможное зацикливание — сверить с оригиналом] ' + seg.text;
         allSegments.push(seg);
       }
 
