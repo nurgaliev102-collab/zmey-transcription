@@ -76,51 +76,31 @@ class WhisperApp {
     // Setup UI
     this._setupUI();
 
-    // Clear old service worker caches and unregister stale workers.
-    // This ensures the latest code always loads (even after service worker updates).
+    // Keep model caches; versioned scripts select the current release.
     if ('serviceWorker' in navigator) {
-      try {
-        // Unregister all old service workers
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        let hadOldWorkers = false;
-        for (const reg of registrations) {
-          await reg.unregister();
-          hadOldWorkers = true;
-          console.log('Unregistered old service worker');
-        }
-
-        // Clear all old caches to prevent stale code
-        const cacheNames = await caches.keys();
-        for (const name of cacheNames) {
-          await caches.delete(name);
-          console.log(`Cleared cache: ${name}`);
-        }
-
-        // If we had old workers, reload to get the fresh code
-        if (hadOldWorkers) {
-          console.log('Old service workers cleared. Reloading…');
-          location.reload();
-          return; // Stop init, will run again after reload
-        }
-      } catch (err) {
-        console.warn('Service worker cleanup failed:', err);
-      }
-
-      // Register the new service worker
-      try {
-        const reg = await navigator.serviceWorker.register('service-worker.js');
-        console.log('✓ Service Worker registered:', reg);
-      } catch (err) {
-        console.warn('Service Worker registration failed:', err);
-      }
+      navigator.serviceWorker.register('service-worker.js').catch(console.warn);
     }
-
+    const controls = document.createElement('div');
+    controls.style.cssText='display:flex;gap:8px;flex-wrap:wrap;margin:12px 0';
+    const pause=document.createElement('button'); pause.textContent='Остановить';
+    const save=document.createElement('button'); save.textContent='Скачать сохранённый текст';
+    const clear=document.createElement('button'); clear.textContent='Удалить сохранённый текст';
+    const status=document.createElement('p'); status.id='checkpoint-status';
+    controls.append(pause,save,clear,status);
+    document.getElementById('transcribe-button').after(controls);
+    pause.onclick=()=>{if(this.isTranscribing){this.worker.terminate();this.isTranscribing=false;this._releaseWakeLock();document.getElementById('transcribe-button').disabled=false;status.textContent='Остановлено. Повторный запуск продолжит с сохранённого блока.';this._spawnWorker();}};
+    save.onclick=()=>{try{const c=JSON.parse(localStorage.getItem('zmey-v9-checkpoint')||'null');if(c)FormatExporter.download(c.segments.map(x=>x.text).join('\n'),'partial-transcript.txt');}catch(e){status.textContent=e.message;}};
+    clear.onclick=()=>{if(!this.isTranscribing&&confirm('Удалить сохранённую расшифровку?')){localStorage.removeItem('zmey-v9-checkpoint');status.textContent='Удалено';}};
+    try{const c=JSON.parse(localStorage.getItem('zmey-v9-checkpoint')||'null');if(c)status.textContent='Сохранено: '+Math.floor(c.offset)+' сек. Выберите тот же файл для продолжения.';}catch(e){status.textContent=e.message;}
+    this._spawnWorker();
+  }
+  _spawnWorker() {
     // Initialize Web Worker for transcription (ES module worker).
     // The Whisper model is loaded lazily inside the worker on first transcribe.
-    this.worker = new Worker('transcription-worker.js?v=8', { type: 'module' });
+    this.worker = new Worker('transcription-worker.js?v=9', { type: 'module' });
     this.worker.onmessage = (event) => this._handleWorkerMessage(event);
     this.worker.onerror = (err) => {
-      this._showAlert(`Ошибка движка V8: ${err.message || 'Рабочий процесс остановлен браузером'}`, 'error');
+      this._showAlert(`Ошибка движка V9: ${err.message || 'Рабочий процесс остановлен браузером'}`, 'error');
       this.isStreamChunkProcessing = false;
       this._releaseWakeLock();
       this.isTranscribing = false;
@@ -332,8 +312,9 @@ class WhisperApp {
    */
   async _decodeAudioFile(file) {
     const arrayBuffer = await file.arrayBuffer();
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)({sampleRate:16000});
+    let audioBuffer;
+    try { audioBuffer = await audioContext.decodeAudioData(arrayBuffer); } finally { await audioContext.close(); }
     
     // Convert to transferable format (Float32Array)
     // Whisper expects mono audio
@@ -377,9 +358,7 @@ class WhisperApp {
 
       // Re-acquire when the tab becomes visible again (browser releases lock on hide)
       this.wakeLockSentinel.addEventListener('release', () => {
-        if (this.isTranscribing || this.isStreaming) {
-          this._requestWakeLock();
-        }
+        // Do not recursively reacquire a released lock.
       });
     } catch (err) {
       // Wake lock is a best-effort feature; silently ignore failures
@@ -458,10 +437,13 @@ class WhisperApp {
         }
         break;
       case 'progress':
+        if(this.inputMode==='file' && this.fileKey && Number.isFinite(progress?.completedSeconds)){
+          try{localStorage.setItem('zmey-v9-checkpoint',JSON.stringify({key:this.fileKey,offset:progress.completedSeconds,segments:progress.segments}));document.getElementById('checkpoint-status').textContent='Сохранено: '+Math.floor(progress.completedSeconds)+' сек.';}catch(e){document.getElementById('checkpoint-status').textContent='Не удалось сохранить: '+e.message;}
+        }
         this._updateTranscriptionProgress(progress);
         break;
       case 'error':
-        this._showAlert(`Ошибка распознавания V8: ${message}`, 'error');
+        this._showAlert(`Ошибка распознавания V9: ${message}`, 'error');
         // Clear both flags on error
         this.isTranscribing = false;
         this.isStreamChunkProcessing = false;
@@ -575,7 +557,7 @@ class WhisperApp {
       if (mediaPlayer && segments.length > 0) {
         // Seek to the end time of the last segment
         const lastSegment = segments[segments.length - 1];
-        mediaPlayer.currentTime = lastSegment.end;
+        if(Number.isFinite(lastSegment.end)) mediaPlayer.currentTime = lastSegment.end;
         // Ensure audio continues playing after seeking
         if (!mediaPlayer.paused) {
           mediaPlayer.play().catch(err => {
@@ -1063,6 +1045,8 @@ class WhisperApp {
             sampleRate: sampleRate,
             options: {
               model: this.selectedModel,
+              resumeOffset: this.inputMode==='file' ? (this.resume?.offset||0) : 0,
+              initialSegments: this.inputMode==='file' ? (this.resume?.segments||[]) : [],
               language: this.selectedLanguage,
               translate: this.translateToEnglish,
               // Tell transcriber to skip the overlap prefix when returning segments
@@ -1236,7 +1220,15 @@ class WhisperApp {
         return;
       }
       file = fileInput.files[0];
-      audioBuffer = await this._decodeAudioFile(file);
+      this.fileKey = JSON.stringify([file.name,file.size,file.lastModified,this.selectedModel]);
+      this.resume = null;
+      try {
+        const c=JSON.parse(localStorage.getItem('zmey-v9-checkpoint')||'null');
+        if(c && c.key===this.fileKey && confirm('Продолжить с '+Math.floor(c.offset)+' сек.?')) this.resume=c;
+        else if(c && !confirm('Начать заново? Предыдущая сохранённая расшифровка будет заменена.')) {btn.disabled=false;return;}
+        if(!this.resume) localStorage.removeItem('zmey-v9-checkpoint');
+        audioBuffer = await this._decodeAudioFile(file);
+      } catch(e){this._showAlert('Ошибка подготовки аудио: '+e.message,'error');btn.disabled=false;return;}
     } else if (this.inputMode === 'mic') {
       // Microphone mode: use recorded audio
       if (!this.recordedAudio || this.recordedAudio.length === 0) {
@@ -1280,9 +1272,7 @@ class WhisperApp {
         this._updateSeekbarFill(seekbar);
         
         // Start playing audio immediately
-        mediaPlayer.play().catch(err => {
-          console.warn('Could not autoplay audio:', err);
-        });
+        mediaPlayer.pause();
       }
 
       // Send to worker
