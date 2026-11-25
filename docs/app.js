@@ -117,10 +117,12 @@ class WhisperApp {
 
     // Initialize Web Worker for transcription (ES module worker).
     // The Whisper model is loaded lazily inside the worker on first transcribe.
-    this.worker = new Worker('transcription-worker.js?v=6', { type: 'module' });
+    this.worker = new Worker('transcription-worker.js?v=7', { type: 'module' });
     this.worker.onmessage = (event) => this._handleWorkerMessage(event);
     this.worker.onerror = (err) => {
-      this._showAlert(`Worker error: ${err.message}`, 'error');
+      this._showAlert(`Ошибка движка V7: ${err.message || 'Рабочий процесс остановлен браузером'}`, 'error');
+      this.isStreamChunkProcessing = false;
+      this._releaseWakeLock();
       this.isTranscribing = false;
       const btn = document.getElementById('transcribe-button');
       if (btn) btn.disabled = false;
@@ -459,7 +461,7 @@ class WhisperApp {
         this._updateTranscriptionProgress(progress);
         break;
       case 'error':
-        this._showAlert(`Transcription error: ${message}`, 'error');
+        this._showAlert(`Ошибка распознавания V7: ${message}`, 'error');
         // Clear both flags on error
         this.isTranscribing = false;
         this.isStreamChunkProcessing = false;
