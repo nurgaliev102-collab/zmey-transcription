@@ -11,7 +11,7 @@
  * not in the service worker cache, to avoid bloating the service worker storage quota.
  */
 
-const CACHE_VERSION = 'zmey-v8';
+const CACHE_VERSION = 'zmey-v9';
 const CACHE_NAME = `whisper-webCLI-${CACHE_VERSION}`;
 
 // Files to cache on install
