@@ -97,6 +97,8 @@ export class Transcriber {
       model = 'base',
       language = 'ru',
       translate = false,
+      resumeOffset = 0,
+      initialSegments = [],
       onModelProgress,
       onStatus,
       onProgress,
@@ -120,9 +122,9 @@ export class Transcriber {
     const stride = chunkSamples - overlapSamples; // slide by 25 seconds
 
     const chunks = [];
-    let offset = 0;
-    let globalTimeOffset = 0;
-    const allSegments = [];
+    let offset = Math.min(audio16k.length, Math.max(0, Math.round(resumeOffset * 16000)));
+    let globalTimeOffset = offset / 16000;
+    const allSegments = initialSegments.slice();
 
     while (offset < audio16k.length) {
       const end = Math.min(offset + chunkSamples, audio16k.length);
@@ -169,6 +171,7 @@ export class Transcriber {
           pct: Math.min(pct, 99), // Don't show 100 until fully done
           label: `Transcribing… ${pct}%`,
           segments: allSegments,
+          completedSeconds: Math.min(offset, audio16k.length) / 16000,
         });
       }
     }
