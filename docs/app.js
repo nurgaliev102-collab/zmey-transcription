@@ -117,7 +117,7 @@ class WhisperApp {
 
     // Initialize Web Worker for transcription (ES module worker).
     // The Whisper model is loaded lazily inside the worker on first transcribe.
-    this.worker = new Worker('transcription-worker.js', { type: 'module' });
+    this.worker = new Worker('transcription-worker.js?v=6', { type: 'module' });
     this.worker.onmessage = (event) => this._handleWorkerMessage(event);
     this.worker.onerror = (err) => {
       this._showAlert(`Worker error: ${err.message}`, 'error');
