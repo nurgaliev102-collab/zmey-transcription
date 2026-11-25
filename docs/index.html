@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#0d0f1a" />
     <meta name="description" content="Offline speech-to-text transcription using OpenAI Whisper in your browser. Privacy-preserving, zero-installation, zero-egress." />
 
-    <title>ЗМЕЙ — Транскрипция</title>
+    <title>ЗМЕЙ — Транскрипция — V6</title>
 
     <link rel="manifest" href="manifest.json" />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233665b6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='9' y='2' width='6' height='12' rx='3'/><path d='M5 10v1a7 7 0 0 0 14 0v-1'/><path d='M12 18v4'/><path d='M8 22h8'/></svg>" />
@@ -153,7 +153,7 @@
 
               <div class="form-group">
                 <label class="lbl" for="language-select">Язык</label>
-                <select id="language-select">
+                <select id="language-select" disabled>
                   <option value="auto">Автоопределение</option>
                   <option value="ru" selected>Русский</option>
                   <option value="en">English</option>
@@ -171,7 +171,7 @@
             </div>
 
             <label class="checkbox-row">
-              <input type="checkbox" id="translate-checkbox" />
+              <input type="checkbox" id="translate-checkbox" disabled />
               <span>Перевести на английский</span>
             </label>
             <p class="hint">Whisper can translate non-English audio to English.</p>
@@ -345,7 +345,7 @@
     <!-- Scripts -->
     <script src="model-manager.js?v=5"></script>
     <script src="format-exporter.js?v=5"></script>
-    <script src="app.js?v=5"></script>
+    <script src="app.js?v=6"></script>
     
     <!-- Global API setup for HTML onclick handlers -->
     <script>
